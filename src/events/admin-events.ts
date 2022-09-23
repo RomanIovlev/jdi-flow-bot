@@ -1,7 +1,6 @@
 import TelegramBot, {Message} from 'node-telegram-bot-api';
 import fs from 'fs';
 import {Queue} from 'queue-typescript';
-import 'dotenv/config';
 import {FlowBot} from '../flow-bot';
 
 export class AdminEvents {
@@ -14,7 +13,7 @@ export class AdminEvents {
         this.state = flowBot.state;
     }
 
-    isAdmin = (chatId: number) => chatId === parseInt(process.env.ADMIN_ID);
+    isAdmin = (chatId: number) => this.flowBot.adminIds.includes(chatId);
     adminCommand = (ctx: Message, command: string) => ctx.text === command && this.isAdmin(ctx.chat.id);
     adminWait = (ctx: Message, waitCommand: string) => this.state.get(ctx.chat.id) === waitCommand && this.isAdmin(ctx.chat.id);
 

@@ -1,8 +1,8 @@
 {
   "name": "jdi-flow-bot",
-  "version": "1.0.3",
-  "main": "./build/index.js",
-  "types": "./build/iaddndex.d.ts",
+  "version": "1.0.4",
+  "main": "index.js",
+  "types": "index.d.ts",
   "keywords": [
     "telegram",
     "bot",

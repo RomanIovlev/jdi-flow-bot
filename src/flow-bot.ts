@@ -4,22 +4,28 @@ import fs from 'fs';
 import {BotEvent} from './interfaces/bot-event';
 import {FeedbackEvent} from './events/feedback-event';
 import {ScreensResourceReader} from './utils/screens-resource-reader';
-import 'dotenv/config';
 import {AdminEvents} from './events/admin-events';
 
 
 export class FlowBot {
-    readonly bot: TelegramBot = new TelegramBot(process.env.BOT_TOKEN, {
-        polling: true,
-    });
+    readonly bot: TelegramBot;
+    adminIds: number[] = [];
     screens: BotScreen[];
     events: BotEvent[];
 
     state: Map<number, string> = new Map<number, string>();
 
-    constructor(flow: { screens: BotScreen[], events: BotEvent[]}) {
+    constructor(token: string, flow: { screens: BotScreen[], events: BotEvent[]}, options?: { adminIds: string | number[] }) {
+        this.bot = new TelegramBot(token, {
+            polling: true,
+        });
         this.screens = flow.screens;
         this.events = flow.events;
+        if (options?.adminIds) {
+            this.adminIds = typeof options.adminIds !== 'string'
+                ? options.adminIds
+                : options.adminIds.split(';').map(id => parseInt(id));
+        }
     }
 
     start() {
