@@ -30,7 +30,7 @@ export class FlowBot {
     }
 
     async start() {
-        await this.registerCallbacks(this.screens);
+        await this.registerCommands(this.screens);
         this.registerEvents(this.events);
         this.processScreen(this.screens[0]);
     }
@@ -42,29 +42,36 @@ export class FlowBot {
         await this.start();
     }
 
-    async registerCallbacks(screens: BotScreen[]) {
-        const commands = [];
-        for (const screen of screens) {
-            if (screen.description) {
-                commands.push({ command: screen.command, description: screen.description });
-                this.bot.on('message', async ctx => {
-                    if (ctx.text === screen.command) {
-                        await this.processCommand(ctx, screen);
+    async registerCommands(screens: BotScreen[]) {
+        try {
+            const commands = [];
+            for (const screen of screens) {
+                if (screen.description) {
+                    if (screen.command.includes('-')) {
+                        throw `Wrong command "${screen.command}". Dash (-) is not allowed for bot commands. See more details: https://core.telegram.org/bots/#commands`;
+                    }
+                    commands.push({command: screen.command, description: screen.description});
+                    this.bot.on('message', async ctx => {
+                        if (ctx.text === screen.command) {
+                            await this.processCommand(ctx, screen);
+                        }
+                    });
+                }
+                this.bot.on('callback_query', async ctx => {
+                    const command = '/' + ctx.data;
+                    if (command === screen.command) {
+                        await this.processCommand(ctx.message, screen);
                     }
                 });
             }
-            this.bot.on('callback_query', async ctx => {
-                this.currentScreen = screen;
-                const command = '/' + ctx.data;
-                if (command === screen.command) {
-                    await this.processCommand(ctx.message, screen);
-                }
-            });
+            await this.bot.setMyCommands(commands);
+        } catch (ex: any) {
+            throw 'Register commands failed\n' + (ex.message || ex);
         }
-        await this.bot.setMyCommands(commands);
     }
 
     async processCommand(ctx: Message, screen: BotScreen) {
+        this.currentScreen = screen;
         this.state.set(ctx.chat.id, '');
         await this.sendMessage(screen, ctx, screen.command);
         if (screen.event) {

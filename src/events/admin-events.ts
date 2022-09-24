@@ -25,6 +25,7 @@ export class AdminEvents {
 /adm_add_resource - upload resource file
 /adm_list_resources - list all filenames in resources folder
 /adm_screen_data - print current screen data
+/adm_update_text - update current screen text
 /adm_add_image - upload new image
 /adm_list_images - list all filenames in images folder`);
             }
@@ -49,9 +50,12 @@ export class AdminEvents {
         });
         this.bot.on('message', async ctx => {
             if (this.adminCommand(ctx, '/adm_screen_data')) {
-                await this.bot.sendMessage(ctx.chat.id, 'PRINT');
-                // await this.bot.sendMessage(ctx.chat.id, this.flowBot.currentScreen.toString());
-                // await this.bot.sendMessage(ctx.chat.id, JSON.stringify(this.flowBot.currentScreen));
+                await this.bot.sendMessage(ctx.chat.id, JSON.stringify(this.flowBot.currentScreen));
+            }
+        });
+        this.bot.on('message', async ctx => {
+            if (this.adminCommand(ctx, '/adm_update_text')) {
+                await this.bot.sendMessage(ctx.chat.id, JSON.stringify(this.flowBot.currentScreen));
             }
         });
         this.bot.on('message', async ctx => {
