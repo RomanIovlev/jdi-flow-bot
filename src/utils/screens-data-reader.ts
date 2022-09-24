@@ -11,7 +11,7 @@ export class ScreensDataReader {
     }
 
     readData(): BotTextImage {
-        logger.log('readData');
+        logger.debug('readData');
         if (this.data.length === 0) {
             console.error('Failed to load resource: ' + this.screen.data);
             return ;
@@ -26,7 +26,7 @@ export class ScreensDataReader {
     }
 
     filter() {
-        logger.log('filter');
+        logger.debug('filter');
         try {
             if (this.screen.filter.includes('=')) {
                 return this.filterEqual(this.screen.filter);
@@ -42,26 +42,26 @@ export class ScreensDataReader {
     }
 
     filterEqual(filter: string) {
-        logger.log('filterEqual');
+        logger.debug('filterEqual');
         const split = filter.split('=');
         // @ts-ignore
         return this.data.filter(r => this.compare(r[split[0]], split[1]));
     }
     filterMore(filter: string) {
-        logger.log('filterMore');
+        logger.debug('filterMore');
         const split = filter.split('>');
         // @ts-ignore
         return this.data.filter(r => r[split[0]] > parseInt(split[1]));
     }
     filterLess(filter: string) {
-        logger.log('filterLess');
+        logger.debug('filterLess');
         const split = filter.split('<');
         // @ts-ignore
         return this.data.filter(r => r[split[0]] < parseInt(split[1]));
     }
 
     compare(obj: any, str: string) {
-        logger.log('compare');
+        logger.debug('compare');
         if (typeof obj === 'string') {
             return obj === str;
         }

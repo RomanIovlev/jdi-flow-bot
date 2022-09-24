@@ -6,6 +6,7 @@ import {FeedbackEvent} from './events/feedback-event';
 import {ScreensDataReader} from './utils/screens-data-reader';
 import {AdminEvents} from './events/admin-events';
 import {logger} from './utils/logger';
+import {LogLevels} from './utils/log-levels';
 
 
 export class FlowBot {
@@ -22,7 +23,8 @@ export class FlowBot {
     constructor(token: string, flow: { screens: BotScreen[], events?: BotEvent[]}, options?: Partial<{
         adminIds: string | number[],
         imagesFolder: string,
-        dataFolder: string
+        dataFolder: string,
+        logLevel: LogLevels
     }>) {
         this.bot = new TelegramBot(token, {
             polling: true,
@@ -41,18 +43,21 @@ export class FlowBot {
             if (options.dataFolder) {
                 this.dataFolder = options.dataFolder;
             }
+            if (options.logLevel) {
+                logger.logLevel = options.logLevel;
+            }
         }
     }
 
     async start() {
-        logger.log('start');
+        logger.debug('start');
         await this.registerCommands(this.screens);
         this.registerEvents(this.events);
         this.processScreen(this.screens[0]);
     }
 
     async restart(screens: BotScreen[], events: BotEvent[]) {
-        logger.log('restart');
+        logger.debug('restart');
         this.screens = screens;
         this.events = events;
         this.bot.removeAllListeners();
@@ -60,11 +65,11 @@ export class FlowBot {
     }
 
     async registerCommands(screens: BotScreen[]) {
-        logger.log('registerCommands');
+        logger.debug('registerCommands');
         try {
             const commands = [];
             for (const screen of screens) {
-                logger.log('register screen: ' + screen.command);
+                logger.debug('register screen: ' + screen.command);
                 if (screen.description) {
                     if (screen.command.includes('-')) {
                         logger.error(`Wrong command "${screen.command}". Dash (-) is not allowed for bot commands. See more details: https://core.telegram.org/bots/#commands`);
@@ -90,7 +95,7 @@ export class FlowBot {
     }
 
     async processCommand(ctx: Message, screen: BotScreen) {
-        logger.log('processCommand: ' + screen.command);
+        logger.debug('processCommand: ' + screen.command);
         this.currentScreen = screen;
         this.state.set(ctx.chat.id, '');
         await this.sendMessage(screen, ctx, screen.command);
@@ -100,10 +105,10 @@ export class FlowBot {
     }
 
     registerEvents(events: BotEvent[]) {
-        logger.log('registerEvents');
+        logger.debug('registerEvents');
         new AdminEvents(this).register();
         for (const event of events) {
-            logger.log('register screen: ' + event.name);
+            logger.debug('register screen: ' + event.name);
             const screen = this.screens.find(sc => sc.command === event.command);
             if (!screen) return;
             this.bot.on('message', async ctx =>  {
@@ -116,7 +121,7 @@ export class FlowBot {
     }
 
     async processEvent(ctx: TelegramBot.Message, event: BotEvent) {
-        logger.log('processEvent');
+        logger.debug('processEvent');
         if (event.feedback) {
             await new FeedbackEvent(this.bot, ctx, event.feedback).process();
         }
@@ -132,7 +137,7 @@ export class FlowBot {
     }
 
     sendMessage(screen: BotScreen, ctx: TelegramBot.Message, command: string) {
-        logger.log('sendMessage');
+        logger.debug('sendMessage');
         if (screen.data) {
             const item = new ScreensDataReader(screen, this.dataFolder).readData();
             screen.text = item.text;
@@ -144,20 +149,22 @@ export class FlowBot {
     }
 
     async sendText(screen: BotScreen, ctx: TelegramBot.Message, command: string) {
-        logger.log('sendText');
         let options: SendMessageOptions = { parse_mode: 'Markdown' };
         if (screen.buttons && screen.buttons.length > 0) {
             options.reply_markup = { inline_keyboard: screen.buttons };
         }
         if (!screen.command || command === screen.command) {
-            await this.bot.sendMessage(ctx.chat.id, screen.text, options);
+            const message = this.escapedText(screen.text);
+            logger.debug('sendText: ' + message);
+            await this.bot.sendMessage(ctx.chat.id, message, options);
+            logger.debug('sendText successful');
         }
     }
 
     async sendPhoto(screen: BotScreen, ctx: TelegramBot.Message, command: string) {
         let options: SendPhotoOptions = {};
         if (screen.text) {
-            options.caption = screen.text;
+            options.caption = this.escapedText(screen.text);
             options.parse_mode = 'Markdown';
         }
         if (screen.buttons && screen.buttons.length > 0) {
@@ -166,9 +173,14 @@ export class FlowBot {
         if (!screen.command || command === screen.command) {
             const imageFile = typeof screen.image === 'string'
                 ? screen.image
-                : screen.image[Math.floor(Math.random() * screen.image.length)]
-            logger.log('sendPhoto');
+                : screen.image[Math.floor(Math.random() * screen.image.length)];
+            logger.debug(`sendPhoto: { image: ${imageFile}, text: ${options.caption}`);
             await this.bot.sendPhoto(ctx.chat.id, fs.readFileSync(this.imagesFolder + imageFile), options);
         }
+        logger.debug('sendPhoto successful');
+    }
+
+    escapedText(text: string) {
+        return text.replace('_', '\\_');
     }
 }
