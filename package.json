@@ -1,6 +1,6 @@
 {
   "name": "jdi-flow-bot",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "main": "index.js",
   "types": "index.d.ts",
   "keywords": [
@@ -21,6 +21,7 @@
   "description": "Is a simple framework for creating Telegram bots based on intuitive json flows",
   "scripts": {
     "prepublish": "tsc",
+    "build": "tsc",
     "start": "node ./build/index.js",
     "restart": "npm run build && npm run start"
   },
@@ -31,7 +32,6 @@
   },
   "dependencies": {
     "node-telegram-bot-api": "^0.59.0",
-    "dotenv": "^16.0.2",
     "queue-typescript": "^1.0.1"
   }
 }

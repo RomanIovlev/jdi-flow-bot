@@ -24,6 +24,7 @@ export class AdminEvents {
 `/adm_update_flow - update bot flow
 /adm_add_resource - upload resource file
 /adm_list_resources - list all filenames in resources folder
+/adm_screen_data - print current screen data
 /adm_add_image - upload new image
 /adm_list_images - list all filenames in images folder`);
             }
@@ -44,6 +45,13 @@ export class AdminEvents {
             if (this.adminCommand(ctx, '/adm_list_resources')) {
                 const files = fs.readdirSync('src/resources');
                 await this.bot.sendMessage(ctx.chat.id, files.join('\n'));
+            }
+        });
+        this.bot.on('message', async ctx => {
+            if (this.adminCommand(ctx, '/adm_screen_data')) {
+                await this.bot.sendMessage(ctx.chat.id, 'PRINT');
+                // await this.bot.sendMessage(ctx.chat.id, this.flowBot.currentScreen.toString());
+                // await this.bot.sendMessage(ctx.chat.id, JSON.stringify(this.flowBot.currentScreen));
             }
         });
         this.bot.on('message', async ctx => {
@@ -83,7 +91,7 @@ export class AdminEvents {
             }
             await this.bot.downloadFile(ctx.document.file_id, 'src/resources');
             const { screens, events } = JSON.parse(fs.readFileSync(filePath).toString());
-            this.flowBot.restart(screens, events);
+            await this.flowBot.restart(screens, events);
             await this.bot.sendMessage(ctx.chat.id, 'Flow update successful');
         } catch (ex) {
             await this.bot.sendMessage(ctx.chat.id, 'Flow update failed');

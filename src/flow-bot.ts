@@ -1,5 +1,5 @@
 import {BotScreen} from './interfaces/bot-screen';
-import TelegramBot, {SendMessageOptions, SendPhotoOptions} from 'node-telegram-bot-api';
+import TelegramBot, {Message, SendMessageOptions, SendPhotoOptions} from 'node-telegram-bot-api';
 import fs from 'fs';
 import {BotEvent} from './interfaces/bot-event';
 import {FeedbackEvent} from './events/feedback-event';
@@ -12,15 +12,16 @@ export class FlowBot {
     adminIds: number[] = [];
     screens: BotScreen[];
     events: BotEvent[];
+    currentScreen: BotScreen;
 
     state: Map<number, string> = new Map<number, string>();
 
-    constructor(token: string, flow: { screens: BotScreen[], events: BotEvent[]}, options?: { adminIds: string | number[] }) {
+    constructor(token: string, flow: { screens: BotScreen[], events?: BotEvent[]}, options?: { adminIds: string | number[] }) {
         this.bot = new TelegramBot(token, {
             polling: true,
         });
         this.screens = flow.screens;
-        this.events = flow.events;
+        this.events = flow.events ?? [];
         if (options?.adminIds) {
             this.adminIds = typeof options.adminIds !== 'string'
                 ? options.adminIds
@@ -28,18 +29,69 @@ export class FlowBot {
         }
     }
 
-    start() {
-        this.processScreen(this.screens[0])
-        this.registerCallbacks(this.screens);
+    async start() {
+        await this.registerCallbacks(this.screens);
         this.registerEvents(this.events);
+        this.processScreen(this.screens[0]);
     }
 
-    restart(screens: BotScreen[], events: BotEvent[]) {
+    async restart(screens: BotScreen[], events: BotEvent[]) {
         this.screens = screens;
         this.events = events;
         this.bot.removeAllListeners();
-        this.start();
+        await this.start();
     }
+
+    async registerCallbacks(screens: BotScreen[]) {
+        const commands = [];
+        for (const screen of screens) {
+            if (screen.description) {
+                commands.push({ command: screen.command, description: screen.description });
+                this.bot.on('message', async ctx => {
+                    if (ctx.text === screen.command) {
+                        await this.processCommand(ctx, screen);
+                    }
+                });
+            }
+            this.bot.on('callback_query', async ctx => {
+                this.currentScreen = screen;
+                const command = '/' + ctx.data;
+                if (command === screen.command) {
+                    await this.processCommand(ctx.message, screen);
+                }
+            });
+        }
+        await this.bot.setMyCommands(commands);
+    }
+
+    async processCommand(ctx: Message, screen: BotScreen) {
+        this.state.set(ctx.chat.id, '');
+        await this.sendMessage(screen, ctx, screen.command);
+        if (screen.event) {
+            this.state.set(ctx.chat.id, screen.event);
+        }
+    }
+
+    registerEvents(events: BotEvent[]) {
+        new AdminEvents(this).register();
+        for (const event of events) {
+            const screen = this.screens.find(sc => sc.command === event.command);
+            if (!screen) return;
+            this.bot.on('message', async ctx =>  {
+                if (this.state.get(ctx.chat.id) !== event.name) return;
+                await this.processEvent(ctx, event);
+                this.state.set(ctx.chat.id, '');
+                await this.sendMessage(screen, ctx, screen.command);
+            });
+        }
+    }
+
+    async processEvent(ctx: TelegramBot.Message, event: BotEvent) {
+        if (event.feedback) {
+            await new FeedbackEvent(this.bot, ctx, event.feedback).process();
+        }
+    }
+
 
     processScreen(screen: BotScreen) {
         if (!screen.text && !screen.image && !screen.resource) {
@@ -84,41 +136,6 @@ export class FlowBot {
                 ? screen.image
                 : screen.image[Math.floor(Math.random() * screen.image.length)]
             await this.bot.sendPhoto(ctx.chat.id, fs.readFileSync('./images/' + imageFile), options);
-        }
-    }
-
-    registerCallbacks(screens: BotScreen[]) {
-        for (const screen of screens) {
-            this.bot.on('callback_query', async ctx => {
-                const command = '/' + ctx.data;
-                if (command && command === screen.command) {
-                    this.state.set(ctx.message.chat.id, '');
-                    await this.sendMessage(screen, ctx.message, command);
-                    if (screen.event) {
-                        this.state.set(ctx.message.chat.id, screen.event);
-                    }
-                }
-            });
-        }
-    }
-
-    registerEvents(events: BotEvent[]) {
-        new AdminEvents(this).register();
-        for (const event of events) {
-            const screen = this.screens.find(sc => sc.command === event.command);
-            if (!screen) return;
-            this.bot.on('message', async ctx =>  {
-                if (this.state.get(ctx.chat.id) !== event.name) return;
-                await this.processEvent(ctx, event);
-                this.state.set(ctx.chat.id, '');
-                await this.sendMessage(screen, ctx, screen.command);
-            });
-        }
-    }
-
-    async processEvent(ctx: TelegramBot.Message, event: BotEvent) {
-        if (event.feedback) {
-            await new FeedbackEvent(this.bot, ctx, event.feedback).process();
         }
     }
 }
