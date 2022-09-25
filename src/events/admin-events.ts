@@ -2,6 +2,7 @@ import TelegramBot, {Message} from 'node-telegram-bot-api';
 import fs from 'fs';
 import {Queue} from 'queue-typescript';
 import {FlowBot} from '../flow-bot';
+import {logger} from '../utils/logger';
 
 export class AdminEvents {
     protected bot: TelegramBot;
@@ -98,7 +99,7 @@ export class AdminEvents {
             await this.bot.sendMessage(ctx.chat.id, 'Flow update successful');
         } catch (ex) {
             await this.bot.sendMessage(ctx.chat.id, 'Flow update failed');
-            console.error('Failed to update flow');
+            logger.error('Failed to update flow');
         }
         this.state.set(ctx.chat.id, '');
 
@@ -115,7 +116,7 @@ export class AdminEvents {
             this.state.set(ctx.chat.id, '');
         } catch (ex) {
             await this.bot.sendMessage(ctx.chat.id, 'Data upload failed');
-            console.error('Failed to upload data');
+            logger.error('Failed to upload data');
         }
     }
 
@@ -131,7 +132,7 @@ export class AdminEvents {
             this.state.set(ctx.chat.id, '');
         } catch (ex) {
             await this.bot.sendMessage(ctx.chat.id, 'Image upload failed');
-            console.error('Failed to upload image');
+            logger.error('Failed to upload image');
         }
     }
 

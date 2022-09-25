@@ -18,7 +18,9 @@ export class FlowBot {
     imagesFolder: string = './images/';
     dataFolder: string = './data/';
 
+    screenDataReader: ScreensDataReader;
     state: Map<number, string> = new Map<number, string>();
+    previousScreen: Map<number, BotScreen> = new Map<number, BotScreen>();
 
     constructor(token: string, flow: { screens: BotScreen[], events?: BotEvent[]}, options?: Partial<{
         adminIds: string | number[],
@@ -53,7 +55,6 @@ export class FlowBot {
         logger.debug('start');
         await this.registerCommands(this.screens);
         this.registerEvents(this.events);
-        this.processScreen(this.screens[0]);
     }
 
     async restart(screens: BotScreen[], events: BotEvent[]) {
@@ -82,8 +83,7 @@ export class FlowBot {
                     });
                 }
                 this.bot.on('callback_query', async ctx => {
-                    const command = '/' + ctx.data;
-                    if (command === screen.command) {
+                    if ('/' + ctx.data === screen.command) {
                         await this.processCommand(ctx.message, screen);
                     }
                 });
@@ -96,6 +96,7 @@ export class FlowBot {
 
     async processCommand(ctx: Message, screen: BotScreen) {
         logger.debug('processCommand: ' + screen.command);
+        this.previousScreen.set(ctx.chat.id, screen);
         this.currentScreen = screen;
         this.state.set(ctx.chat.id, '');
         await this.sendMessage(screen, ctx, screen.command);
@@ -127,25 +128,21 @@ export class FlowBot {
         }
     }
 
-
-    processScreen(screen: BotScreen) {
-        if (!screen.text && !screen.image && !screen.data) {
-            logger.error('Screen must have at least text or image or resource');
-            return ;
-        }
-        this.bot.on('message', ctx => this.sendMessage(screen, ctx, ctx.text));
-    }
-
     sendMessage(screen: BotScreen, ctx: TelegramBot.Message, command: string) {
         logger.debug('sendMessage');
         if (screen.data) {
-            const item = new ScreensDataReader(screen, this.dataFolder).readData();
+            const item = this.getScreenDataReader(ctx.chat.id).readData(this.dataFolder + screen.data, screen.filter);
             screen.text = item.text;
             screen.image = item.image;
         }
         return screen.image
             ? this.sendPhoto(screen, ctx, command)
             : this.sendText(screen, ctx, command);
+    }
+
+    getScreenDataReader(chatId: number): ScreensDataReader {
+        this.screenDataReader = this.screenDataReader ?? new ScreensDataReader(chatId);
+        return this.screenDataReader;
     }
 
     async sendText(screen: BotScreen, ctx: TelegramBot.Message, command: string) {
