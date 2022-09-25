@@ -5,7 +5,7 @@ export interface BotScreen {
     description?: string;
     text?: string;
     image?: string | string[];
-    resource?: string;
+    data?: string;
     filter?: string;
     buttons?: BotButton[][];
     handler?: string;

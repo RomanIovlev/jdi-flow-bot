@@ -1,10 +1,12 @@
 import TelegramBot from 'node-telegram-bot-api';
 import fs from 'fs';
+import {logger} from '../utils/logger';
 
 export class FeedbackEvent {
     constructor(protected bot: TelegramBot, protected ctx: TelegramBot.Message, protected feedback: BotEventFeedback) { }
 
     async process() {
+        logger.debug('FeedbackEvent:process');
         if (this.ctx.photo) {
             await this.resendPhoto();
         } else {
@@ -13,6 +15,7 @@ export class FeedbackEvent {
     }
 
     async resendPhoto() {
+        logger.debug('FeedbackEvent:resendPhoto');
         if (!fs.existsSync('temp')) {
             await fs.mkdirSync('temp');
         }
@@ -25,11 +28,13 @@ export class FeedbackEvent {
     }
 
     async resendText() {
+        logger.debug('FeedbackEvent:resendText');
         const text = this.getText(this.ctx.text);
         await this.bot.sendMessage(this.feedback.chatId, text, { parse_mode: 'Markdown' });
     }
 
     getText(text: string): string {
+        logger.debug('FeedbackEvent:getText');
         const message = text || '';
         return this.feedback.textTemplate
             ? this.feedback.textTemplate.replace('{{text}}', message).replace('{{from}}', this.ctx.from.username)

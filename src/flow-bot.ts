@@ -3,8 +3,10 @@ import TelegramBot, {Message, SendMessageOptions, SendPhotoOptions} from 'node-t
 import fs from 'fs';
 import {BotEvent} from './interfaces/bot-event';
 import {FeedbackEvent} from './events/feedback-event';
-import {ScreensResourceReader} from './utils/screens-resource-reader';
+import {ScreensDataReader} from './utils/screens-data-reader';
 import {AdminEvents} from './events/admin-events';
+import {logger} from './utils/logger';
+import {LogLevels} from './utils/log-levels';
 
 
 export class FlowBot {
@@ -13,29 +15,50 @@ export class FlowBot {
     screens: BotScreen[];
     events: BotEvent[];
     currentScreen: BotScreen;
+    imagesFolder: string = './images/';
+    dataFolder: string = './data/';
 
+    screenDataReader: ScreensDataReader;
     state: Map<number, string> = new Map<number, string>();
+    previousScreen: Map<number, BotScreen> = new Map<number, BotScreen>();
 
-    constructor(token: string, flow: { screens: BotScreen[], events?: BotEvent[]}, options?: { adminIds: string | number[] }) {
+    constructor(token: string, flow: { screens: BotScreen[], events?: BotEvent[]}, options?: Partial<{
+        adminIds: string | number[],
+        imagesFolder: string,
+        dataFolder: string,
+        logLevel: LogLevels
+    }>) {
         this.bot = new TelegramBot(token, {
             polling: true,
         });
         this.screens = flow.screens;
         this.events = flow.events ?? [];
-        if (options?.adminIds) {
-            this.adminIds = typeof options.adminIds !== 'string'
-                ? options.adminIds
-                : options.adminIds.split(';').map(id => parseInt(id));
+        if (options) {
+            if (options.adminIds) {
+                this.adminIds = typeof options.adminIds !== 'string'
+                    ? options.adminIds
+                    : options.adminIds.split(';').map(id => parseInt(id));
+            }
+            if (options.imagesFolder) {
+                this.imagesFolder = options.imagesFolder;
+            }
+            if (options.dataFolder) {
+                this.dataFolder = options.dataFolder;
+            }
+            if (options.logLevel) {
+                logger.logLevel = options.logLevel;
+            }
         }
     }
 
     async start() {
+        logger.debug('start');
         await this.registerCommands(this.screens);
         this.registerEvents(this.events);
-        this.processScreen(this.screens[0]);
     }
 
     async restart(screens: BotScreen[], events: BotEvent[]) {
+        logger.debug('restart');
         this.screens = screens;
         this.events = events;
         this.bot.removeAllListeners();
@@ -43,12 +66,14 @@ export class FlowBot {
     }
 
     async registerCommands(screens: BotScreen[]) {
+        logger.debug('registerCommands');
         try {
             const commands = [];
             for (const screen of screens) {
+                logger.debug('register screen: ' + screen.command);
                 if (screen.description) {
                     if (screen.command.includes('-')) {
-                        throw `Wrong command "${screen.command}". Dash (-) is not allowed for bot commands. See more details: https://core.telegram.org/bots/#commands`;
+                        logger.error(`Wrong command "${screen.command}". Dash (-) is not allowed for bot commands. See more details: https://core.telegram.org/bots/#commands`);
                     }
                     commands.push({command: screen.command, description: screen.description});
                     this.bot.on('message', async ctx => {
@@ -58,19 +83,20 @@ export class FlowBot {
                     });
                 }
                 this.bot.on('callback_query', async ctx => {
-                    const command = '/' + ctx.data;
-                    if (command === screen.command) {
+                    if ('/' + ctx.data === screen.command) {
                         await this.processCommand(ctx.message, screen);
                     }
                 });
             }
             await this.bot.setMyCommands(commands);
         } catch (ex: any) {
-            throw 'Register commands failed\n' + (ex.message || ex);
+            logger.error('Register commands failed\n' + (ex.message || ex));
         }
     }
 
     async processCommand(ctx: Message, screen: BotScreen) {
+        logger.debug('processCommand: ' + screen.command);
+        this.previousScreen.set(ctx.chat.id, screen);
         this.currentScreen = screen;
         this.state.set(ctx.chat.id, '');
         await this.sendMessage(screen, ctx, screen.command);
@@ -80,8 +106,10 @@ export class FlowBot {
     }
 
     registerEvents(events: BotEvent[]) {
+        logger.debug('registerEvents');
         new AdminEvents(this).register();
         for (const event of events) {
+            logger.debug('register screen: ' + event.name);
             const screen = this.screens.find(sc => sc.command === event.command);
             if (!screen) return;
             this.bot.on('message', async ctx =>  {
@@ -94,23 +122,16 @@ export class FlowBot {
     }
 
     async processEvent(ctx: TelegramBot.Message, event: BotEvent) {
+        logger.debug('processEvent');
         if (event.feedback) {
             await new FeedbackEvent(this.bot, ctx, event.feedback).process();
         }
     }
 
-
-    processScreen(screen: BotScreen) {
-        if (!screen.text && !screen.image && !screen.resource) {
-            console.error('Screen must have at least text or image or resource');
-            return ;
-        }
-        this.bot.on('message', ctx => this.sendMessage(screen, ctx, ctx.text));
-    }
-
     sendMessage(screen: BotScreen, ctx: TelegramBot.Message, command: string) {
-        if (screen.resource) {
-            const item = new ScreensResourceReader(screen).readResource();
+        logger.debug('sendMessage');
+        if (screen.data) {
+            const item = this.getScreenDataReader(ctx.chat.id).readData(this.dataFolder + screen.data, screen.filter);
             screen.text = item.text;
             screen.image = item.image;
         }
@@ -119,20 +140,28 @@ export class FlowBot {
             : this.sendText(screen, ctx, command);
     }
 
+    getScreenDataReader(chatId: number): ScreensDataReader {
+        this.screenDataReader = this.screenDataReader ?? new ScreensDataReader(chatId);
+        return this.screenDataReader;
+    }
+
     async sendText(screen: BotScreen, ctx: TelegramBot.Message, command: string) {
         let options: SendMessageOptions = { parse_mode: 'Markdown' };
         if (screen.buttons && screen.buttons.length > 0) {
             options.reply_markup = { inline_keyboard: screen.buttons };
         }
         if (!screen.command || command === screen.command) {
-            await this.bot.sendMessage(ctx.chat.id, screen.text, options);
+            const message = this.escapedText(screen.text);
+            logger.debug('sendText: ' + message);
+            await this.bot.sendMessage(ctx.chat.id, message, options);
+            logger.debug('sendText successful');
         }
     }
 
     async sendPhoto(screen: BotScreen, ctx: TelegramBot.Message, command: string) {
         let options: SendPhotoOptions = {};
         if (screen.text) {
-            options.caption = screen.text;
+            options.caption = this.escapedText(screen.text);
             options.parse_mode = 'Markdown';
         }
         if (screen.buttons && screen.buttons.length > 0) {
@@ -141,8 +170,14 @@ export class FlowBot {
         if (!screen.command || command === screen.command) {
             const imageFile = typeof screen.image === 'string'
                 ? screen.image
-                : screen.image[Math.floor(Math.random() * screen.image.length)]
-            await this.bot.sendPhoto(ctx.chat.id, fs.readFileSync('./images/' + imageFile), options);
+                : screen.image[Math.floor(Math.random() * screen.image.length)];
+            logger.debug(`sendPhoto: { image: ${imageFile}, text: ${options.caption}`);
+            await this.bot.sendPhoto(ctx.chat.id, fs.readFileSync(this.imagesFolder + imageFile), options);
         }
+        logger.debug('sendPhoto successful');
+    }
+
+    escapedText(text: string) {
+        return text.replace('_', '\\_');
     }
 }
