@@ -7,6 +7,7 @@ import {ScreensDataReader} from './utils/screens-data-reader';
 import {AdminEvents} from './events/admin-events';
 import {logger} from './utils/logger';
 import {LogLevels} from './utils/log-levels';
+import {StatsHandler} from './stats/stats-handler';
 
 
 export class FlowBot {
@@ -14,13 +15,13 @@ export class FlowBot {
     adminIds: number[] = [];
     screens: BotScreen[];
     events: BotEvent[];
-    currentScreen: BotScreen;
     imagesFolder: string = './images/';
     dataFolder: string = './data/';
 
     screenDataReader: ScreensDataReader;
     state: Map<number, string> = new Map<number, string>();
-    previousScreen: Map<number, BotScreen> = new Map<number, BotScreen>();
+    currentScreen: Map<number, BotScreen> = new Map<number, BotScreen>();
+    stats: StatsHandler = new StatsHandler();
 
     constructor(token: string, flow: { screens: BotScreen[], events?: BotEvent[]}, options?: Partial<{
         adminIds: string | number[],
@@ -96,8 +97,8 @@ export class FlowBot {
 
     async processCommand(ctx: Message, screen: BotScreen) {
         logger.debug('processCommand: ' + screen.command);
-        this.previousScreen.set(ctx.chat.id, screen);
-        this.currentScreen = screen;
+        this.stats.writeStats({ id: ctx.chat.username, screen: screen.command, date: new Date()});
+        this.currentScreen.set(ctx.chat.id, screen);
         this.state.set(ctx.chat.id, '');
         await this.sendMessage(screen, ctx, screen.command);
         if (screen.event) {
@@ -131,7 +132,7 @@ export class FlowBot {
     sendMessage(screen: BotScreen, ctx: TelegramBot.Message, command: string) {
         logger.debug('sendMessage');
         if (screen.data) {
-            const item = this.getScreenDataReader(ctx.chat.id).readData(this.dataFolder + screen.data, screen.filter);
+            const item = this.getScreenDataReader(ctx.chat.id).readData(this.dataFolder + screen.data, screen.filter, screen.order);
             screen.text = item.text;
             screen.image = item.image;
         }
@@ -167,7 +168,7 @@ export class FlowBot {
         if (screen.buttons && screen.buttons.length > 0) {
             options.reply_markup = { inline_keyboard: screen.buttons };
         }
-        if (!screen.command || command === screen.command) {
+        if (screen.image && (!screen.command || command === screen.command)) {
             const imageFile = typeof screen.image === 'string'
                 ? screen.image
                 : screen.image[Math.floor(Math.random() * screen.image.length)];

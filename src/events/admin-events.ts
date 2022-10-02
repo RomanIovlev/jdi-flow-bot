@@ -27,7 +27,8 @@ export class AdminEvents {
 /adm_list_data - list all filenames in data folder
 /adm_screen_data - print current screen data
 /adm_add_image - upload new image
-/adm_list_images - list all filenames in images folder`);
+/adm_list_images - list all filenames in images folder
+/adm_stats - returns bot usage stats`);
             }
         });
         this.bot.on('message', async ctx => {
@@ -50,12 +51,12 @@ export class AdminEvents {
         });
         this.bot.on('message', async ctx => {
             if (this.adminCommand(ctx, '/adm_screen_data')) {
-                await this.bot.sendMessage(ctx.chat.id, JSON.stringify(this.flowBot.currentScreen));
+                await this.bot.sendMessage(ctx.chat.id, JSON.stringify(this.flowBot.currentScreen.get(ctx.chat.id)));
             }
         });
         this.bot.on('message', async ctx => {
             if (this.adminCommand(ctx, '/adm_update_text')) {
-                await this.bot.sendMessage(ctx.chat.id, JSON.stringify(this.flowBot.currentScreen));
+                await this.bot.sendMessage(ctx.chat.id, JSON.stringify(this.flowBot.currentScreen.get(ctx.chat.id)));
             }
         });
         this.bot.on('message', async ctx => {
@@ -70,6 +71,14 @@ export class AdminEvents {
                 await this.bot.sendMessage(ctx.chat.id, files.join('\n'));
             }
         });
+        this.bot.on('message', async ctx => {
+            if (this.adminCommand(ctx, '/adm_stats')) {
+                const files = fs.readdirSync('images');
+                await this.bot.sendMessage(ctx.chat.id, files.join('\n'));
+            }
+        });
+
+        // Wait actions
         this.bot.on('message', async ctx => {
             if (this.adminWait(ctx, 'wait_update_flow') && ctx.document) {
                 await this.updateFlowEvent(ctx);

@@ -1,12 +1,13 @@
 import { BotTextImage } from '../interfaces/bot-text-image';
 import fs from 'fs';
 import {logger} from './logger';
+import {Order} from '../interfaces/bot-screen';
 
 export class ScreensDataReader {
-    previousData: Map<number, string> = new Map<number, string>();
+    previousData: Map<number, string[]> = new Map<number, string[]>([]);
     constructor(protected chatId: number) { }
 
-    readData(dataPath: string, filter: string): BotTextImage {
+    readData(dataPath: string, filter: string, order: Order): BotTextImage {
         logger.debug('readData');
         const data: BotTextImage[] = JSON.parse(fs.readFileSync(dataPath).toString());
         if (data.length === 0) {
@@ -14,21 +15,39 @@ export class ScreensDataReader {
             return ;
         }
         let filtered: BotTextImage[] = filter
-            ? this.filter(data, filter)
+            ? this.filterAll(data, filter)
             : [...data];
-        if (this.previousData && filtered.length > 1) {
-            const newFilter = filtered.filter(d => d.text !== this.previousData.get(this.chatId));
-            if (newFilter.length > 0) {
-                filtered = [...newFilter];
+        if (filtered.length > 1 && this.previousData.size > 0) {
+            if (filtered.length === this.previousData.size) {
+                this.previousData.set(this.chatId, []);
+            } else {
+                filtered = filtered.filter(d => !this.previousData.get(this.chatId).includes(d.text));
             }
         }
-        const result = filtered[Math.floor(Math.random() * filtered.length)];
+        const result = order === 'ordered'
+            ? filtered[0]
+            : filtered[Math.floor(Math.random() * filtered.length)];
         logger.debug('Filter result: ' + result);
-        this.previousData.set(this.chatId, result.text);
+        const newExclude: string[] = order === 'random'
+            ? [...result.text]
+            : [...this.previousData.get(this.chatId), result.text];
+        this.previousData.set(this.chatId, newExclude);
+
         return result;
     }
 
-    filter(data: BotTextImage[], filter: string) {
+    filterAll(data: BotTextImage[], filter: string): BotTextImage[] {
+        const conditions: string[] = filter.includes('&')
+            ? filter.split('&')
+            : [...filter];
+        let filtered: BotTextImage[] = [...data];
+        for(let condition of conditions) {
+            filtered = this.filter(filtered, condition);
+        }
+        return filtered;
+    }
+
+    filter(data: BotTextImage[], filter: string): BotTextImage[]  {
         logger.debug('filter');
         try {
             if (filter.includes('=')) {
@@ -44,19 +63,19 @@ export class ScreensDataReader {
         } catch (ex) { return []; }
     }
 
-    filterEqual(data: BotTextImage[], filter: string) {
+    filterEqual(data: BotTextImage[], filter: string): BotTextImage[] {
         const split = filter.split('=');
         logger.debug('filterEqual: ' + JSON.stringify(split));
         // @ts-ignore
         return data.filter(r => this.compare(r[split[0]], split[1]));
     }
-    filterMore(data: BotTextImage[], filter: string) {
+    filterMore(data: BotTextImage[], filter: string): BotTextImage[] {
         logger.debug('filterMore');
         const split = filter.split('>');
         // @ts-ignore
         return data.filter(r => r[split[0]] > parseInt(split[1]));
     }
-    filterLess(data: BotTextImage[], filter: string) {
+    filterLess(data: BotTextImage[], filter: string): BotTextImage[] {
         logger.debug('filterLess');
         const split = filter.split('<');
         // @ts-ignore
