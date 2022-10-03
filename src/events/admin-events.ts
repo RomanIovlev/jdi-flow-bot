@@ -67,14 +67,15 @@ export class AdminEvents {
         });
         this.bot.on('message', async ctx => {
             if (this.adminCommand(ctx, '/adm_list_images')) {
-                const files = fs.readdirSync('images');
+                const files = fs.readdirSync(this.flowBot.imagesFolder);
                 await this.bot.sendMessage(ctx.chat.id, files.join('\n'));
             }
         });
         this.bot.on('message', async ctx => {
             if (this.adminCommand(ctx, '/adm_stats')) {
-                const files = fs.readdirSync('images');
-                await this.bot.sendMessage(ctx.chat.id, files.join('\n'));
+                const users = this.flowBot.stats.getAllUsers();
+                const actionsCount = this.flowBot.stats.getActionsCount('start');
+                await this.bot.sendMessage(ctx.chat.id, `User: ${JSON.stringify(users)}\r\nActions: ${actionsCount}`);
             }
         });
 

@@ -1,4 +1,3 @@
-import moment from 'moment';
 import {Periods} from './periods';
 
 export const today = { date: new Date() };
@@ -51,20 +50,4 @@ export const changeDate = (day: number, month: number, year: number): Date => {
         date.getSeconds(),
         date.getMilliseconds()
     );
-};
-
-export const getDateWithFormat = (date: Date, format: string) => {
-    return moment(date).format(format);
-};
-
-export const getDay = (date: Date) => {
-    return getDateWithFormat(date, 'DD');
-};
-
-export const getMonth = (date: Date) => {
-    return getDateWithFormat(date, 'MM');
-};
-
-export const getYear = (date: Date) => {
-    return getDateWithFormat(date, 'YYYY');
 };

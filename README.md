@@ -6,8 +6,8 @@ Is a simple framework for creating Telegram bots based on intuitive json flows
    ```flow = { screens: BotScreen[], events: BotEvent[] }```
 3. Run flow bot using your json screen flow
 ```
-import flow from './resources/screens-flow.json';
-import {FlowBot} from './jdi-flow-bot/flow-bot';
+import flow from './flow-bot/screens/flow.json';
+import {FlowBot} from 'jdi-flow-bot/flow-bot';
 import 'dotenv/config';
 
 new FlowBot(process.env.BOT_TOKEN, flow).start();

@@ -8,6 +8,7 @@ import {AdminEvents} from './events/admin-events';
 import {logger} from './utils/logger';
 import {LogLevels} from './utils/log-levels';
 import {StatsHandler} from './stats/stats-handler';
+import {mergePath} from './utils/file-utils';
 
 
 export class FlowBot {
@@ -15,19 +16,18 @@ export class FlowBot {
     adminIds: number[] = [];
     screens: BotScreen[];
     events: BotEvent[];
-    imagesFolder: string = './images/';
-    dataFolder: string = './data/';
+    imagesFolder: string = './flow-bot/images/';
+    dataFolder: string = './flow-bot/data/';
 
     screenDataReader: ScreensDataReader;
     state: Map<number, string> = new Map<number, string>();
     currentScreen: Map<number, BotScreen> = new Map<number, BotScreen>();
-    stats: StatsHandler = new StatsHandler();
+    stats: StatsHandler = new StatsHandler('./flow-bot/stats');
 
     constructor(token: string, flow: { screens: BotScreen[], events?: BotEvent[]}, options?: Partial<{
         adminIds: string | number[],
-        imagesFolder: string,
         dataFolder: string,
-        logLevel: LogLevels
+        logLevel: LogLevels,
     }>) {
         this.bot = new TelegramBot(token, {
             polling: true,
@@ -40,11 +40,10 @@ export class FlowBot {
                     ? options.adminIds
                     : options.adminIds.split(';').map(id => parseInt(id));
             }
-            if (options.imagesFolder) {
-                this.imagesFolder = options.imagesFolder;
-            }
             if (options.dataFolder) {
-                this.dataFolder = options.dataFolder;
+                this.dataFolder = mergePath(options.dataFolder, 'data/');
+                this.imagesFolder = mergePath(options.dataFolder, 'images/');
+                this.stats = new StatsHandler(mergePath(options.dataFolder, 'stats/'));
             }
             if (options.logLevel) {
                 logger.logLevel = options.logLevel;
@@ -52,21 +51,21 @@ export class FlowBot {
         }
     }
 
-    async start() {
+    start() {
         logger.debug('start');
-        await this.registerCommands(this.screens);
+        this.registerCommands(this.screens);
         this.registerEvents(this.events);
     }
 
-    async restart(screens: BotScreen[], events: BotEvent[]) {
+    restart(screens: BotScreen[], events: BotEvent[]) {
         logger.debug('restart');
         this.screens = screens;
         this.events = events;
         this.bot.removeAllListeners();
-        await this.start();
+        this.start();
     }
 
-    async registerCommands(screens: BotScreen[]) {
+    registerCommands(screens: BotScreen[]) {
         logger.debug('registerCommands');
         try {
             const commands = [];
@@ -89,7 +88,7 @@ export class FlowBot {
                     }
                 });
             }
-            await this.bot.setMyCommands(commands);
+            this.bot.setMyCommands(commands);
         } catch (ex: any) {
             logger.error('Register commands failed\n' + (ex.message || ex));
         }

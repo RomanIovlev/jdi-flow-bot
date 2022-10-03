@@ -2,32 +2,38 @@ import {StatRecord} from './stat-record';
 import {getDate} from '../utils/date-utils';
 import {Periods} from '../utils/periods';
 import fs from 'fs';
-import csv from 'fast-csv';
 
 export class StatsHandler {
-    readonly filePath: string = './src/stats/stats.csv';
-
-    csvToData() {
-        const result: StatRecord[] = [];
-        fs.createReadStream(this.filePath)
-            .pipe(csv.parse({ headers: true }))
-            .on('error', error => console.error(error))
-            .on('data', row => result.push(row));
-        console.log('CSV: ', JSON.stringify(result));
-        return result;
-    }
-    //fs.readFile(this.filePath, 'utf8', (err, data) => {
-    /* parse data */
-
-    stats: StatRecord[];
-
-    readStats(filter: (stat: StatRecord) => boolean = st => true): StatRecord[] {
-        const stats: StatRecord[] = JSON.parse(fs.readFileSync(this.filePath).toString());
-        return stats.filter(filter);
-    }
+    constructor (readonly filePath: string) { }
 
     writeStats(stat: StatRecord) {
-        this.stats.push(stat);
+        const date = stat.date.toISOString().split('T')[0];
+        fs.appendFile(this.filePath, `${stat.id},${stat.screen},${date}\r\n`, () => {});
+    }
+
+    readStats(): StatRecord[] {
+        const csv: string[] = fs.readFileSync(this.filePath, 'utf-8').split(/\r?\n/);
+        const result: StatRecord[] = [];
+        for (let line of csv) {
+            const stat: StatRecord = this.readLine(line);
+            if (stat) {
+                result.push(stat);
+            }
+        }
+        return result;
+    }
+
+    readLine(line: string): StatRecord {
+        if (line === '') return undefined;
+        try {
+            const data = line.split(',');
+            if (data.length !== 3) return undefined;
+            const date = new Date(data[2]);
+            if (date.toString() === 'Invalid Date') return undefined;
+            return {id: data[0], screen: data[1], date: new Date(data[2])};
+        } catch (ex) {
+            return undefined;
+        }
     }
 
     getAllUsers(stats: StatRecord[] = this.readStats()): string[] {
