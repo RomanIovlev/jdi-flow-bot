@@ -7,8 +7,12 @@ export class ScreensDataReader {
     previousData: Map<number, string[]> = new Map<number, string[]>([]);
     constructor(protected chatId: number) { }
 
-    readData(dataPath: string, filter: string, order: Order = 'random'): BotTextImage {
-        logger.debug('readData');
+    prev() {
+        return this.previousData.get(this.chatId) ?? [];
+    }
+
+    readData(dataPath: string, filter: string, order: string/*Order*/ = 'random'): BotTextImage {
+        logger.debug('readData: ' + order);
         const data: BotTextImage[] = JSON.parse(fs.readFileSync(dataPath).toString());
         if (data.length === 0) {
             logger.error('Failed to load resource: ' + dataPath);
@@ -17,11 +21,11 @@ export class ScreensDataReader {
         let filtered: BotTextImage[] = filter
             ? this.filterAll(data, filter)
             : [...data];
-        if (filtered.length > 1 && this.previousData.size > 0) {
-            if (filtered.length === this.previousData.size) {
+        if (filtered.length > 1 && this.prev().length > 0) {
+            if (filtered.length === this.prev().length) {
                 this.previousData.set(this.chatId, []);
             } else {
-                filtered = filtered.filter(d => !this.previousData.get(this.chatId).includes(d.text));
+                filtered = filtered.filter(d => !this.prev().includes(d.text));
             }
         }
         const result = order === 'ordered'
@@ -30,10 +34,9 @@ export class ScreensDataReader {
         if (!result.text) {
             logger.error(`${JSON.stringify(filtered)}\n ${order}`);
         }
-        logger.debug('Filter result: ' + result);
-        const newExclude: string[] = order === 'random' || this.previousData.size === 0
-            ? [...result.text]
-            : [...this.previousData.get(this.chatId), result.text];
+        const newExclude: string[] = order === 'random' || this.prev().length === 0
+            ? [result.text]
+            : [...this.prev(), result.text];
         this.previousData.set(this.chatId, newExclude);
         return result;
     }

@@ -1,6 +1,6 @@
 import {BotButton} from './bot-button';
 
-export type Order = 'random' | 'ordered' | 'random-excluding';
+export type Order = 'random' | 'ordered' | 'random-exclude';
 
 export interface BotScreen {
     command: string;
@@ -8,7 +8,7 @@ export interface BotScreen {
     text?: string;
     image?: string | string[];
     data?: string;
-    order?: Order;
+    order?: string;//Order;
     filter?: string;
     buttons?: BotButton[][];
     handler?: string;
