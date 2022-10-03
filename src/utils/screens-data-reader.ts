@@ -42,9 +42,10 @@ export class ScreensDataReader {
     }
 
     filterAll(data: BotTextImage[], filter: string): BotTextImage[] {
+        logger.debug('Filter: ' + filter);
         const conditions: string[] = filter.includes('&')
             ? filter.split('&')
-            : [...filter];
+            : [filter];
         let filtered: BotTextImage[] = [...data];
         for(let condition of conditions) {
             filtered = this.filter(filtered, condition);
@@ -53,7 +54,6 @@ export class ScreensDataReader {
     }
 
     filter(data: BotTextImage[], filter: string): BotTextImage[]  {
-        logger.debug('filter');
         try {
             if (filter.includes('=')) {
                 return this.filterEqual(data, filter);
@@ -65,7 +65,10 @@ export class ScreensDataReader {
                 return this.filterLess(data, filter);
             }
             return [];
-        } catch (ex) { return []; }
+        } catch (ex: unknown | any) {
+            logger.error('Filter Error: ' + ex.message);
+            return [];
+        }
     }
 
     filterEqual(data: BotTextImage[], filter: string): BotTextImage[] {
@@ -75,14 +78,14 @@ export class ScreensDataReader {
         return data.filter(r => this.compare(r[split[0]], split[1]));
     }
     filterMore(data: BotTextImage[], filter: string): BotTextImage[] {
-        logger.debug('filterMore');
         const split = filter.split('>');
+        logger.debug('filterMore: ' + JSON.stringify(split));
         // @ts-ignore
         return data.filter(r => r[split[0]] > parseInt(split[1]));
     }
     filterLess(data: BotTextImage[], filter: string): BotTextImage[] {
-        logger.debug('filterLess');
         const split = filter.split('<');
+        logger.debug('filterLess: ' + JSON.stringify(split));
         // @ts-ignore
         return data.filter(r => r[split[0]] < parseInt(split[1]));
     }
