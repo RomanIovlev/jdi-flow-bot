@@ -13,10 +13,8 @@ export class AdminEvents {
         this.bot = flowBot.bot;
         this.state = flowBot.state;
     }
-
-    isAdmin = (chatId: number) => this.flowBot.adminIds.includes(chatId);
-    adminCommand = (ctx: Message, command: string) => ctx.text === command && this.isAdmin(ctx.chat.id);
-    adminWait = (ctx: Message, waitCommand: string) => this.state.get(ctx.chat.id) === waitCommand && this.isAdmin(ctx.chat.id);
+    adminCommand = (ctx: Message, command: string): boolean => ctx.text === command && this.flowBot.isAdmin(ctx.chat.id);
+    adminWait = (ctx: Message, waitCommand: string): boolean => this.state.get(ctx.chat.id) === waitCommand && this.flowBot.isAdmin(ctx.chat.id);
 
     register() {
         this.bot.on('message', async ctx => {
@@ -27,7 +25,8 @@ export class AdminEvents {
 /adm_list_data - list all filenames in data folder
 /adm_screen_data - print current screen data
 /adm_add_image - upload new image
-/adm_list_images - list all filenames in images folder`);
+/adm_list_images - list all filenames in images folder
+/adm_stats - returns bot usage stats`);
             }
         });
         this.bot.on('message', async ctx => {
@@ -50,12 +49,12 @@ export class AdminEvents {
         });
         this.bot.on('message', async ctx => {
             if (this.adminCommand(ctx, '/adm_screen_data')) {
-                await this.bot.sendMessage(ctx.chat.id, JSON.stringify(this.flowBot.currentScreen));
+                await this.bot.sendMessage(ctx.chat.id, JSON.stringify(this.flowBot.currentScreen.get(ctx.chat.id)));
             }
         });
         this.bot.on('message', async ctx => {
             if (this.adminCommand(ctx, '/adm_update_text')) {
-                await this.bot.sendMessage(ctx.chat.id, JSON.stringify(this.flowBot.currentScreen));
+                await this.bot.sendMessage(ctx.chat.id, JSON.stringify(this.flowBot.currentScreen.get(ctx.chat.id)));
             }
         });
         this.bot.on('message', async ctx => {
@@ -66,10 +65,19 @@ export class AdminEvents {
         });
         this.bot.on('message', async ctx => {
             if (this.adminCommand(ctx, '/adm_list_images')) {
-                const files = fs.readdirSync('images');
+                const files = fs.readdirSync(this.flowBot.imagesFolder);
                 await this.bot.sendMessage(ctx.chat.id, files.join('\n'));
             }
         });
+        this.bot.on('message', async ctx => {
+            if (this.adminCommand(ctx, '/adm_stats')) {
+                const users = this.flowBot.stats.getAllUsers();
+                const actionsCount = this.flowBot.stats.getActionsCount('start');
+                await this.bot.sendMessage(ctx.chat.id, `User: ${JSON.stringify(users)}\r\nActions: ${actionsCount}`);
+            }
+        });
+
+        // Wait actions
         this.bot.on('message', async ctx => {
             if (this.adminWait(ctx, 'wait_update_flow') && ctx.document) {
                 await this.updateFlowEvent(ctx);
@@ -119,7 +127,6 @@ export class AdminEvents {
             logger.error('Failed to upload data');
         }
     }
-
 
     async uploadImageEvent(ctx: Message) {
         try {

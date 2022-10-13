@@ -7,26 +7,26 @@ import {ScreensDataReader} from './utils/screens-data-reader';
 import {AdminEvents} from './events/admin-events';
 import {logger} from './utils/logger';
 import {LogLevels} from './utils/log-levels';
-
+import {StatsHandler} from './stats/stats-handler';
+import {mergePath} from './utils/file-utils';
 
 export class FlowBot {
     readonly bot: TelegramBot;
     adminIds: number[] = [];
     screens: BotScreen[];
     events: BotEvent[];
-    currentScreen: BotScreen;
-    imagesFolder: string = './images/';
-    dataFolder: string = './data/';
+    imagesFolder: string = './flow-bot/images/';
+    dataFolder: string = './flow-bot/data/';
 
     screenDataReader: ScreensDataReader;
     state: Map<number, string> = new Map<number, string>();
-    previousScreen: Map<number, BotScreen> = new Map<number, BotScreen>();
+    currentScreen: Map<number, BotScreen> = new Map<number, BotScreen>();
+    stats: StatsHandler = new StatsHandler('./flow-bot/stats');
 
     constructor(token: string, flow: { screens: BotScreen[], events?: BotEvent[]}, options?: Partial<{
         adminIds: string | number[],
-        imagesFolder: string,
         dataFolder: string,
-        logLevel: LogLevels
+        logLevel: LogLevels,
     }>) {
         this.bot = new TelegramBot(token, {
             polling: true,
@@ -39,11 +39,10 @@ export class FlowBot {
                     ? options.adminIds
                     : options.adminIds.split(';').map(id => parseInt(id));
             }
-            if (options.imagesFolder) {
-                this.imagesFolder = options.imagesFolder;
-            }
             if (options.dataFolder) {
-                this.dataFolder = options.dataFolder;
+                this.dataFolder = mergePath(options.dataFolder, 'data/');
+                this.imagesFolder = mergePath(options.dataFolder, 'images/');
+                this.stats = new StatsHandler(mergePath(options.dataFolder, 'stats/'));
             }
             if (options.logLevel) {
                 logger.logLevel = options.logLevel;
@@ -51,21 +50,21 @@ export class FlowBot {
         }
     }
 
-    async start() {
+    start() {
         logger.debug('start');
-        await this.registerCommands(this.screens);
+        this.registerCommands(this.screens);
         this.registerEvents(this.events);
     }
 
-    async restart(screens: BotScreen[], events: BotEvent[]) {
+    restart(screens: BotScreen[], events: BotEvent[]) {
         logger.debug('restart');
         this.screens = screens;
         this.events = events;
         this.bot.removeAllListeners();
-        await this.start();
+        this.start();
     }
 
-    async registerCommands(screens: BotScreen[]) {
+    registerCommands(screens: BotScreen[]) {
         logger.debug('registerCommands');
         try {
             const commands = [];
@@ -88,7 +87,7 @@ export class FlowBot {
                     }
                 });
             }
-            await this.bot.setMyCommands(commands);
+            this.bot.setMyCommands(commands);
         } catch (ex: any) {
             logger.error('Register commands failed\n' + (ex.message || ex));
         }
@@ -96,8 +95,10 @@ export class FlowBot {
 
     async processCommand(ctx: Message, screen: BotScreen) {
         logger.debug('processCommand: ' + screen.command);
-        this.previousScreen.set(ctx.chat.id, screen);
-        this.currentScreen = screen;
+        if (!this.isAdmin(ctx.chat.id)) {
+            this.stats.writeStats({id: ctx.chat.username, screen: screen.command, date: new Date()});
+        }
+        this.currentScreen.set(ctx.chat.id, screen);
         this.state.set(ctx.chat.id, '');
         await this.sendMessage(screen, ctx, screen.command);
         if (screen.event) {
@@ -123,6 +124,7 @@ export class FlowBot {
 
     async processEvent(ctx: TelegramBot.Message, event: BotEvent) {
         logger.debug('processEvent');
+        this.state.set(ctx.chat.id, 'event:' + event.command);
         if (event.feedback) {
             await new FeedbackEvent(this.bot, ctx, event.feedback).process();
         }
@@ -131,7 +133,7 @@ export class FlowBot {
     sendMessage(screen: BotScreen, ctx: TelegramBot.Message, command: string) {
         logger.debug('sendMessage');
         if (screen.data) {
-            const item = this.getScreenDataReader(ctx.chat.id).readData(this.dataFolder + screen.data, screen.filter);
+            const item = this.getScreenDataReader(ctx.chat.id).readData(this.dataFolder + screen.data, screen.filter, screen.order);
             screen.text = item.text;
             screen.image = item.image;
         }
@@ -167,7 +169,7 @@ export class FlowBot {
         if (screen.buttons && screen.buttons.length > 0) {
             options.reply_markup = { inline_keyboard: screen.buttons };
         }
-        if (!screen.command || command === screen.command) {
+        if (screen.image && (!screen.command || command === screen.command)) {
             const imageFile = typeof screen.image === 'string'
                 ? screen.image
                 : screen.image[Math.floor(Math.random() * screen.image.length)];
@@ -180,4 +182,6 @@ export class FlowBot {
     escapedText(text: string) {
         return text.replace('_', '\\_');
     }
+
+    isAdmin(chatId: number): boolean { return this.adminIds.includes(chatId); }
 }
