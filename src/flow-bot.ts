@@ -10,7 +10,6 @@ import {LogLevels} from './utils/log-levels';
 import {StatsHandler} from './stats/stats-handler';
 import {mergePath} from './utils/file-utils';
 
-
 export class FlowBot {
     readonly bot: TelegramBot;
     adminIds: number[] = [];
@@ -96,7 +95,9 @@ export class FlowBot {
 
     async processCommand(ctx: Message, screen: BotScreen) {
         logger.debug('processCommand: ' + screen.command);
-        this.stats.writeStats({ id: ctx.chat.username, screen: screen.command, date: new Date()});
+        if (!this.isAdmin(ctx.chat.id)) {
+            this.stats.writeStats({id: ctx.chat.username, screen: screen.command, date: new Date()});
+        }
         this.currentScreen.set(ctx.chat.id, screen);
         this.state.set(ctx.chat.id, '');
         await this.sendMessage(screen, ctx, screen.command);
@@ -123,6 +124,7 @@ export class FlowBot {
 
     async processEvent(ctx: TelegramBot.Message, event: BotEvent) {
         logger.debug('processEvent');
+        this.state.set(ctx.chat.id, 'event:' + event.command);
         if (event.feedback) {
             await new FeedbackEvent(this.bot, ctx, event.feedback).process();
         }
@@ -180,4 +182,6 @@ export class FlowBot {
     escapedText(text: string) {
         return text.replace('_', '\\_');
     }
+
+    isAdmin(chatId: number): boolean { return this.adminIds.includes(chatId); }
 }

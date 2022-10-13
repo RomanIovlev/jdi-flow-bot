@@ -13,10 +13,8 @@ export class AdminEvents {
         this.bot = flowBot.bot;
         this.state = flowBot.state;
     }
-
-    isAdmin = (chatId: number) => this.flowBot.adminIds.includes(chatId);
-    adminCommand = (ctx: Message, command: string) => ctx.text === command && this.isAdmin(ctx.chat.id);
-    adminWait = (ctx: Message, waitCommand: string) => this.state.get(ctx.chat.id) === waitCommand && this.isAdmin(ctx.chat.id);
+    adminCommand = (ctx: Message, command: string): boolean => ctx.text === command && this.flowBot.isAdmin(ctx.chat.id);
+    adminWait = (ctx: Message, waitCommand: string): boolean => this.state.get(ctx.chat.id) === waitCommand && this.flowBot.isAdmin(ctx.chat.id);
 
     register() {
         this.bot.on('message', async ctx => {
@@ -129,7 +127,6 @@ export class AdminEvents {
             logger.error('Failed to upload data');
         }
     }
-
 
     async uploadImageEvent(ctx: Message) {
         try {
