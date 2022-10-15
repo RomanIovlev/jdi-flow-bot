@@ -96,7 +96,7 @@ export class AdminEvents {
     }
 
     async updateFlowEvent(ctx: Message) {
-        logger.info('updateFlowEvent');
+        logger.debug('updateFlowEvent');
         try {
             let filePath = this.flowBot.dataFolder + ctx.document.file_name;
             if (fs.existsSync(filePath)) {
