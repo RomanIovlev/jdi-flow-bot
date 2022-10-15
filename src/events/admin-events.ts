@@ -96,13 +96,12 @@ export class AdminEvents {
     }
 
     async updateFlowEvent(ctx: Message) {
-        console.log('updateFlowEvent');
+        logger.info('updateFlowEvent');
         try {
             let filePath = this.flowBot.dataFolder + ctx.document.file_name;
             if (fs.existsSync(filePath)) {
                 fs.rmSync(filePath);
             }
-            console.log(filePath);
             filePath = await this.bot.downloadFile(ctx.document.file_id, this.flowBot.dataFolder);
             const { screens, events } = JSON.parse(fs.readFileSync(filePath).toString());
             await this.flowBot.restart(screens, events);

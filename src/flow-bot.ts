@@ -124,7 +124,6 @@ export class FlowBot {
                 if (this.state.get(ctx.chat.id) !== 'event:' + event.name) return;
                 this.state.set(ctx.chat.id, `event:${event.name}:start`);
                 await this.processEvent(ctx, event);
-                console.log('OUT: ' + this.state.get(ctx.chat.id));
             });
             this.bot.on('message', async ctx =>  {
                 if (this.state.get(ctx.chat.id) !== `event:${event.name}:done`) return;
