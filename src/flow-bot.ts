@@ -15,6 +15,7 @@ export class FlowBot {
     adminIds: number[] = [];
     screens: BotScreen[];
     events: BotEvent[];
+    customEvents: Map<string, () => {}> = new Map<string, () => {}>();
     imagesFolder: string = './flow-bot/images/';
     dataFolder: string = './flow-bot/data/';
 
@@ -27,6 +28,7 @@ export class FlowBot {
         adminIds: string | number[],
         dataFolder: string,
         logLevel: LogLevels,
+        customEvents: { name: string, handler: (() => {})}[]
     }>) {
         this.bot = new TelegramBot(token, {
             polling: true,
@@ -46,6 +48,11 @@ export class FlowBot {
             }
             if (options.logLevel) {
                 logger.logLevel = options.logLevel;
+            }
+            if (options.customEvents) {
+                for (let events of options.customEvents) {
+                    this.customEvents.set(events.name, events.handler);
+                }
             }
         }
     }
@@ -102,7 +109,7 @@ export class FlowBot {
         this.state.set(ctx.chat.id, '');
         await this.sendMessage(screen, ctx, screen.command);
         if (screen.event) {
-            this.state.set(ctx.chat.id, screen.event);
+            this.state.set(ctx.chat.id, 'event:' + screen.event);
         }
     }
 
@@ -114,19 +121,28 @@ export class FlowBot {
             const screen = this.screens.find(sc => sc.command === event.command);
             if (!screen) return;
             this.bot.on('message', async ctx =>  {
-                if (this.state.get(ctx.chat.id) !== event.name) return;
+                if (this.state.get(ctx.chat.id) !== 'event:' + event.name) return;
+                this.state.set(ctx.chat.id, `event:${event.name}:start`);
                 await this.processEvent(ctx, event);
+                console.log('OUT: ' + this.state.get(ctx.chat.id));
+            });
+            this.bot.on('message', async ctx =>  {
+                if (this.state.get(ctx.chat.id) !== `event:${event.name}:done`) return;
                 this.state.set(ctx.chat.id, '');
-                await this.sendMessage(screen, ctx, screen.command);
+                if (screen.command) {
+                    await this.sendMessage(screen, ctx, screen.command);
+                }
             });
         }
     }
 
     async processEvent(ctx: TelegramBot.Message, event: BotEvent) {
         logger.debug('processEvent');
-        this.state.set(ctx.chat.id, 'event:' + event.command);
         if (event.feedback) {
             await new FeedbackEvent(this.bot, ctx, event.feedback).process();
+        }
+        if (this.customEvents.has(event.name)) {
+            this.customEvents.get(event.name)();
         }
     }
 
@@ -148,6 +164,7 @@ export class FlowBot {
     }
 
     async sendText(screen: BotScreen, ctx: TelegramBot.Message, command: string) {
+        if (!screen.text) return;
         let options: SendMessageOptions = { parse_mode: 'Markdown' };
         if (screen.buttons && screen.buttons.length > 0) {
             options.reply_markup = { inline_keyboard: screen.buttons };
@@ -180,6 +197,7 @@ export class FlowBot {
     }
 
     escapedText(text: string) {
+        if (!text) return;
         return text.replace('_', '\\_');
     }
 
