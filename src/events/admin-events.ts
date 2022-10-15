@@ -96,18 +96,19 @@ export class AdminEvents {
     }
 
     async updateFlowEvent(ctx: Message) {
+        logger.debug('updateFlowEvent');
         try {
             let filePath = this.flowBot.dataFolder + ctx.document.file_name;
             if (fs.existsSync(filePath)) {
                 fs.rmSync(filePath);
             }
-            await this.bot.downloadFile(ctx.document.file_id, this.flowBot.dataFolder);
+            filePath = await this.bot.downloadFile(ctx.document.file_id, this.flowBot.dataFolder);
             const { screens, events } = JSON.parse(fs.readFileSync(filePath).toString());
             await this.flowBot.restart(screens, events);
             await this.bot.sendMessage(ctx.chat.id, 'Flow update successful');
-        } catch (ex) {
+        } catch (ex: unknown | any) {
             await this.bot.sendMessage(ctx.chat.id, 'Flow update failed');
-            logger.error('Failed to update flow');
+            logger.error('Failed to update flow: ' + ex?.message);
         }
         this.state.set(ctx.chat.id, '');
 
